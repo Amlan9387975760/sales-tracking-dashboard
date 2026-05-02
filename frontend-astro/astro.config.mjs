@@ -3,7 +3,7 @@ import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
   integrations: [tailwind()],
-  base: '/sales-tracking-dashboard/',
+  base: process.env.BASE || '/',
   outDir: '../frontend-astro/dist',
   vite: {
     server: {
