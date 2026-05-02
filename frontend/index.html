@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales Intelligence Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app">
+
+        <header class="header">
+            <div class="header-left">
+                <h1>Sales Intelligence Dashboard</h1>
+                <span id="last-updated"></span>
+            </div>
+            <div class="header-right">
+                <select id="month-select" onchange="loadDashboard()">
+                    <option value="">Loading months...</option>
+                </select>
+                <button class="btn-import" onclick="runImport()">Import Reports</button>
+            </div>
+        </header>
+
+        <div id="import-status" class="import-status hidden"></div>
+
+        <main class="main">
+
+            <section class="kpi-section">
+                <div class="kpi-card active">
+                    <div class="kpi-icon">✓</div>
+                    <div class="kpi-info">
+                        <span class="kpi-number" id="kpi-active">—</span>
+                        <span class="kpi-label">Active</span>
+                    </div>
+                </div>
+                <div class="kpi-card demo">
+                    <div class="kpi-icon">◎</div>
+                    <div class="kpi-info">
+                        <span class="kpi-number" id="kpi-demo">—</span>
+                        <span class="kpi-label">Demo</span>
+                    </div>
+                </div>
+                <div class="kpi-card expired">
+                    <div class="kpi-icon">✕</div>
+                    <div class="kpi-info">
+                        <span class="kpi-number" id="kpi-expired">—</span>
+                        <span class="kpi-label">Demo Expired</span>
+                    </div>
+                </div>
+                <div class="kpi-card total">
+                    <div class="kpi-icon">≡</div>
+                    <div class="kpi-info">
+                        <span class="kpi-number" id="kpi-total">—</span>
+                        <span class="kpi-label">Total Companies</span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="two-col">
+                <div class="card">
+                    <h2 class="card-title">Status Distribution</h2>
+                    <div class="chart-wrap">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2 class="card-title">Lifecycle Movement <span class="subtitle">vs Previous Month</span></h2>
+                    <div id="lifecycle-list" class="lifecycle-list">
+                        <p class="empty-msg">Select a month to see changes</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card attention-card">
+                <h2 class="card-title alert-title">⚠ Attention Required — Demo Expired Companies</h2>
+                <div id="attention-list" class="attention-grid"></div>
+            </section>
+
+            <section class="card">
+                <div class="table-header">
+                    <h2 class="card-title">All Companies</h2>
+                    <div class="filters">
+                        <select id="filter-status" onchange="filterCompanies()">
+                            <option value="">All Statuses</option>
+                            <option value="1">Active</option>
+                            <option value="2">Demo</option>
+                            <option value="3">Demo Expired</option>
+                        </select>
+                        <select id="filter-instance" onchange="filterCompanies()">
+                            <option value="">All Regions</option>
+                            <option value="us">US</option>
+                            <option value="europe">Europe</option>
+                            <option value="uae">UAE</option>
+                            <option value="india">India</option>
+                        </select>
+                        <input type="text" id="search-input" placeholder="Search company..." oninput="filterCompanies()">
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <table id="companies-table">
+                        <thead>
+                            <tr>
+                                <th>Company ID</th>
+                                <th>Company Name</th>
+                                <th>Region</th>
+                                <th>Status</th>
+                                <th>Created At</th>
+                            </tr>
+                        </thead>
+                        <tbody id="companies-tbody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,925 @@
+---
+import Layout from '../layouts/Layout.astro';
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const currentMonth = MONTHS[new Date().getMonth()];
+const currentYear = new Date().getFullYear();
+---
+<Layout>
+
+<!-- HEADER -->
+<header class="text-white px-6 lg:px-10 py-4 flex items-center justify-between shadow-2xl sticky top-0 z-40" style="background: linear-gradient(135deg,#1a0533 0%,#3b0764 100%)">
+  <div class="flex items-center gap-3">
+    <img src="/logo.png" alt="Vantage Fit" class="h-9 w-auto drop-shadow" onerror="this.style.display='none'" />
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-base font-bold tracking-tight">Sales Information Dashboard</h1>
+        <span class="hidden sm:inline-block px-2 py-0.5 rounded-full text-xs font-semibold" style="background:rgba(244,63,94,0.25);color:#fda4af">INTERNAL</span>
+      </div>
+      <p class="text-purple-300 text-xs mt-0.5">Vantage Fit · Lifecycle Intelligence</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-2 sm:gap-3">
+    <span id="last-updated" class="hidden lg:block text-purple-300 text-xs"></span>
+    <button id="pdf-btn" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-purple-500 text-purple-200 hover:bg-purple-800 transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Export PDF
+    </button>
+    <button id="upload-btn" class="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white shadow-vf transition-all hover:opacity-90" style="background:linear-gradient(135deg,#f43f5e,#fb923c)">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      Upload Report
+    </button>
+  </div>
+</header>
+
+<!-- FY TABS -->
+<div class="bg-white border-b border-slate-100 px-6 lg:px-10 shadow-sm">
+  <div class="flex gap-0 overflow-x-auto" id="fy-tabs"></div>
+</div>
+
+<!-- MONTH + ERASE BAR -->
+<div class="bg-white border-b border-slate-100 px-6 lg:px-10 py-2.5 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <label class="text-xs text-slate-400 font-medium uppercase tracking-wide">Viewing</label>
+    <select id="month-select" class="border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 bg-white" style="--tw-ring-color:#f43f5e">
+      <option>Loading...</option>
+    </select>
+  </div>
+  <button id="erase-btn" class="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 px-3 py-1.5 rounded-lg transition-colors">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+    Erase Month
+  </button>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="fixed top-20 right-6 z-50 hidden max-w-sm"></div>
+
+<!-- MAIN -->
+<main id="dashboard-main" class="px-6 lg:px-10 py-6 space-y-5 max-w-screen-2xl mx-auto">
+
+  <!-- KPI CARDS -->
+  <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="bg-white rounded-2xl p-5 shadow-card border border-slate-100 flex items-center gap-4 group hover:shadow-md transition-shadow">
+      <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+        <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-slate-800" id="kpi-active">—</p>
+        <p class="text-xs font-semibold text-emerald-600 mt-0.5 uppercase tracking-wide">Active</p>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl p-5 shadow-card border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+      <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#dbeafe,#bfdbfe)">
+        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868V15.131a1 1 0 01-1.447.9L15 14M3 8h12v8H3a1 1 0 01-1-1V9a1 1 0 011-1z"/></svg>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-slate-800" id="kpi-demo">—</p>
+        <p class="text-xs font-semibold text-blue-600 mt-0.5 uppercase tracking-wide">Demo</p>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl p-5 shadow-card border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
+      <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#fee2e2,#fecaca)">
+        <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-slate-800" id="kpi-expired">—</p>
+        <p class="text-xs font-semibold text-red-500 mt-0.5 uppercase tracking-wide">Demo Expired</p>
+      </div>
+    </div>
+    <div class="rounded-2xl p-5 shadow-card flex items-center gap-4 hover:shadow-md transition-shadow" style="background:linear-gradient(135deg,#1a0533,#3b0764)">
+      <div class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-white" id="kpi-total">—</p>
+        <p class="text-xs font-semibold text-purple-300 mt-0.5 uppercase tracking-wide">Total</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- FY TREND + REGION CHARTS -->
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+    <div class="lg:col-span-3 bg-white rounded-2xl p-6 shadow-card border border-slate-100">
+      <div class="flex items-center justify-between mb-3">
+        <div>
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Company Trend</p>
+          <p class="text-xs text-slate-400 mt-0.5">FY <span id="trend-fy-label" class="font-semibold text-slate-500"></span></p>
+        </div>
+      </div>
+      <div class="h-52"><canvas id="trendChart"></canvas></div>
+    </div>
+    <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-card border border-slate-100">
+      <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Companies by Region</p>
+      <div class="h-52"><canvas id="regionChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- CHART + LIFECYCLE -->
+  <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
+    <div class="lg:col-span-2 bg-white rounded-2xl p-6 shadow-card border border-slate-100">
+      <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Status Distribution</p>
+      <div class="flex items-center justify-center h-48">
+        <canvas id="statusChart"></canvas>
+      </div>
+    </div>
+    <div class="lg:col-span-3 bg-white rounded-2xl p-6 shadow-card border border-slate-100">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">Lifecycle Movement</p>
+          <p class="text-xs text-slate-400 mt-0.5">vs previous month upload</p>
+        </div>
+      </div>
+      <div id="lifecycle-summary" class="grid grid-cols-3 gap-3 mb-4 hidden">
+        <div class="rounded-xl p-3 text-center" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+          <p class="text-xl font-black text-emerald-700" id="lc-converted">0</p>
+          <p class="text-xs font-semibold text-emerald-600 mt-0.5">Demo → Active</p>
+        </div>
+        <div class="bg-red-50 rounded-xl p-3 text-center border border-red-100">
+          <p class="text-xl font-black text-red-600" id="lc-expired">0</p>
+          <p class="text-xs font-semibold text-red-500 mt-0.5">→ Expired</p>
+        </div>
+        <div class="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
+          <p class="text-xl font-black text-blue-600" id="lc-reengaged">0</p>
+          <p class="text-xs font-semibold text-blue-500 mt-0.5">Re-engaged</p>
+        </div>
+      </div>
+      <div id="lifecycle-list" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+        <p class="text-slate-300 text-sm text-center py-8">Upload data for two months to see lifecycle changes</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ATTENTION REQUIRED -->
+  <div class="bg-white rounded-2xl shadow-card border border-red-100 overflow-hidden">
+    <div class="px-6 py-4 border-b border-red-50 flex items-center gap-2" style="background:linear-gradient(135deg,#fff1f2,#fff7ed)">
+      <svg class="w-4 h-4 text-red-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+      <p class="text-xs font-bold text-red-600 uppercase tracking-widest">Attention Required — Demo Expired Companies</p>
+    </div>
+    <div id="attention-list" class="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <p class="text-slate-300 text-sm col-span-full text-center py-4">No companies require attention</p>
+    </div>
+  </div>
+
+  <!-- COMPANIES TABLE -->
+  <div class="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <p class="text-xs font-bold text-slate-400 uppercase tracking-widest">All Companies</p>
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="filter-status" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 bg-white focus:outline-none">
+          <option value="">All Statuses</option>
+          <option value="1">Active</option>
+          <option value="2">Demo</option>
+          <option value="3">Demo Expired</option>
+        </select>
+        <div id="region-chips" class="flex flex-wrap gap-1.5" data-active="">
+          <button class="region-chip px-3 py-1.5 rounded-full text-xs font-semibold border bg-purple-600 text-white border-purple-600 transition-all" data-region="">All</button>
+        </div>
+        <input id="search-input" type="text" placeholder="Search company…" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none min-w-36"/>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-100">
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company ID</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company Name</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Region</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Status</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Created At</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Notes</th>
+          </tr>
+        </thead>
+        <tbody id="companies-tbody">
+          <tr><td colspan="5" class="text-center text-slate-300 py-10 text-sm">No data loaded</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- NOTES MODAL -->
+<div id="notes-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl mx-4">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:linear-gradient(135deg,#1a0533,#3b0764)">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+      </div>
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Company Notes</h2>
+        <p class="text-slate-400 text-xs font-mono" id="notes-company-id">—</p>
+      </div>
+    </div>
+    <p class="text-sm font-semibold text-slate-700 mb-2" id="notes-company-name">—</p>
+    <textarea id="notes-input" rows="4" placeholder="Add notes, action items, follow-up remarks…" class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm text-slate-700 focus:outline-none focus:ring-2 resize-none mb-4"></textarea>
+    <div class="flex justify-end gap-3">
+      <button id="notes-cancel-btn" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+      <button id="notes-save-btn" class="px-6 py-2 text-white rounded-lg text-sm font-bold" style="background:linear-gradient(135deg,#1a0533,#3b0764)">Save Notes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ERASE MODAL -->
+<div id="erase-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl mx-4">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
+        <svg class="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      </div>
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Erase Month Data</h2>
+        <p class="text-red-500 text-sm font-semibold" id="erase-month-label">—</p>
+      </div>
+    </div>
+    <p class="text-slate-500 text-sm mb-4">This cannot be undone. Enter admin password to confirm.</p>
+    <input type="password" id="erase-password-input" placeholder="Enter password" class="w-full border border-slate-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 mb-2"/>
+    <p id="erase-error" class="text-red-500 text-xs hidden mb-2">Incorrect password. Try again.</p>
+    <div class="flex justify-end gap-3 mt-5">
+      <button id="erase-cancel-btn" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+      <button id="erase-confirm-btn" class="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold">Yes, Erase</button>
+    </div>
+  </div>
+</div>
+
+<!-- UPLOAD MODAL -->
+<div id="upload-modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl mx-4">
+    <div class="flex items-center gap-3 mb-5">
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background:linear-gradient(135deg,#f43f5e,#fb923c)">
+        <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      </div>
+      <div>
+        <h2 class="text-lg font-bold text-slate-800">Upload Monthly Report</h2>
+        <p class="text-slate-400 text-xs">Select the month this file belongs to</p>
+      </div>
+    </div>
+
+    <!-- Month + Year selector -->
+    <div class="grid grid-cols-2 gap-3 mb-5">
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Month</label>
+        <select id="upload-month" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 bg-white">
+          {MONTHS.map(m => <option value={m} selected={m === currentMonth}>{m}</option>)}
+        </select>
+      </div>
+      <div>
+        <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Year</label>
+        <input type="number" id="upload-year" value={currentYear} min="2020" max="2099" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2"/>
+      </div>
+    </div>
+
+    <!-- Password -->
+    <div class="mb-4">
+      <label class="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1 block">Admin Password</label>
+      <input type="password" id="upload-password" placeholder="Enter password to upload" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm text-slate-700 focus:outline-none focus:ring-2"/>
+      <p id="upload-error" class="text-red-500 text-xs mt-1 hidden">Incorrect password. Try again.</p>
+    </div>
+
+    <!-- Drop zone -->
+    <div id="drop-zone" class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-vf-coral transition-colors cursor-pointer">
+      <div class="text-3xl mb-2">📊</div>
+      <p class="text-slate-600 font-semibold text-sm">Drop CSV or Excel file here</p>
+      <p class="text-slate-400 text-xs mt-1">Supports .csv, .xlsx, .xls</p>
+      <input type="file" id="file-input" accept=".csv,.xlsx,.xls" class="hidden"/>
+      <p id="selected-file" class="text-vf-coral text-xs mt-3 font-semibold hidden"></p>
+    </div>
+
+    <div id="upload-progress" class="hidden mt-4">
+      <div class="w-full bg-slate-100 rounded-full h-1.5">
+        <div class="h-1.5 rounded-full animate-pulse w-full" style="background:linear-gradient(135deg,#f43f5e,#fb923c)"></div>
+      </div>
+      <p class="text-xs text-slate-400 mt-2 text-center">Importing, please wait…</p>
+    </div>
+
+    <div class="flex justify-end gap-3 mt-5">
+      <button id="cancel-btn" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+      <button id="confirm-upload-btn" class="px-6 py-2 text-white rounded-lg text-sm font-bold disabled:opacity-40 transition-all" style="background:linear-gradient(135deg,#f43f5e,#fb923c)" disabled>
+        Upload & Import
+      </button>
+    </div>
+  </div>
+</div>
+
+</Layout>
+
+<script>
+import Chart from 'chart.js/auto';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+
+const API = '/api';
+let allCompanies = [];
+let statusChart = null;
+let trendChart = null;
+let regionChart = null;
+let fyMonths = [];
+let currentFY = '';
+let lastKPIs = {};
+let lastLifecycle = [];
+
+// ── INIT ──────────────────────────────────────────────
+async function init() {
+  document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleString()}`;
+  await loadFiscalYears();
+  setupUploadModal();
+  setupEraseModal();
+  setupNotesModal();
+  setupFilters();
+  setupPDF();
+}
+
+// ── FISCAL YEARS ──────────────────────────────────────
+function getCurrentFY() {
+  const m = new Date().getMonth() + 1, y = new Date().getFullYear();
+  return m >= 4 ? `${y}-${y+1}` : `${y-1}-${y}`;
+}
+function getNextFY(fy) {
+  const s = parseInt(fy.split('-')[0]);
+  return `${s+1}-${s+2}`;
+}
+
+async function loadFiscalYears() {
+  const res = await fetch(`${API}/dashboard/fiscal-years`);
+  let fys = await res.json();
+  const cfy = getCurrentFY();
+  if (!fys.includes(cfy)) fys.push(cfy);
+  if (!fys.includes(getNextFY(cfy))) fys.push(getNextFY(cfy));
+  fys.sort();
+
+  const tabsEl = document.getElementById('fy-tabs');
+  tabsEl.innerHTML = fys.map((fy, i) => `
+    <button class="fy-tab px-6 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${i===0?'border-vf-coral text-vf-coral':'border-transparent text-slate-400 hover:text-slate-600'}" data-fy="${fy}">
+      FY ${fy}
+    </button>`).join('');
+  tabsEl.querySelectorAll('.fy-tab').forEach(btn => btn.addEventListener('click', () => switchFY(btn.dataset.fy)));
+  if (fys.length) await switchFY(fys[0]);
+}
+
+async function switchFY(fy) {
+  currentFY = fy;
+  document.querySelectorAll('.fy-tab').forEach(btn => {
+    const a = btn.dataset.fy === fy;
+    btn.className = `fy-tab px-6 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${a?'border-vf-coral text-vf-coral':'border-transparent text-slate-400 hover:text-slate-600'}`;
+  });
+  const res = await fetch(`${API}/dashboard/months-for-fy?fy=${fy}`);
+  fyMonths = await res.json();
+  const sel = document.getElementById('month-select');
+  sel.innerHTML = fyMonths.length
+    ? fyMonths.map((m,i) => `<option value="${m.month}|${m.year}" ${i===fyMonths.length-1?'selected':''}>${m.month} ${m.year}</option>`).join('')
+    : '<option value="">No data for this FY yet</option>';
+  if (fyMonths.length) { await Promise.all([loadDashboard(), loadFYTrend()]); } else { clearDashboard(); }
+}
+
+// ── DASHBOARD ─────────────────────────────────────────
+async function loadDashboard() {
+  const sel = document.getElementById('month-select');
+  if (!sel.value || !sel.value.includes('|')) return;
+  const [month, year] = sel.value.split('|');
+  await Promise.all([loadKPIs(month,+year), loadLifecycle(month,+year), loadCompanies(month,+year), loadAttention(month,+year)]);
+}
+
+async function loadKPIs(month, year) {
+  const r = await fetch(`${API}/dashboard/kpis?month=${month}&year=${year}`);
+  lastKPIs = await r.json();
+  document.getElementById('kpi-active').textContent  = lastKPIs.active;
+  document.getElementById('kpi-demo').textContent    = lastKPIs.demo;
+  document.getElementById('kpi-expired').textContent = lastKPIs.demo_expired;
+  document.getElementById('kpi-total').textContent   = lastKPIs.total;
+  renderChart(lastKPIs);
+}
+
+function renderChart(kpis) {
+  const ctx = document.getElementById('statusChart').getContext('2d');
+  if (statusChart) statusChart.destroy();
+  statusChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Active','Demo','Demo Expired'],
+      datasets:[{ data:[kpis.active,kpis.demo,kpis.demo_expired], backgroundColor:['#10b981','#3b82f6','#f43f5e'], borderWidth:3, borderColor:'#fff' }]
+    },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'72%',
+      plugins:{ legend:{ position:'bottom', labels:{ padding:16, font:{size:11}, usePointStyle:true } } }
+    }
+  });
+}
+
+async function loadLifecycle(currentMonth, currentYear) {
+  const idx = fyMonths.findIndex(m => m.month===currentMonth && m.year===+currentYear);
+  const el = document.getElementById('lifecycle-list');
+  const sum = document.getElementById('lifecycle-summary');
+  if (idx <= 0) {
+    sum.classList.add('hidden');
+    el.innerHTML = '<p class="text-slate-300 text-sm text-center py-8">No previous month to compare</p>';
+    return;
+  }
+  const prev = fyMonths[idx-1];
+  const r = await fetch(`${API}/dashboard/lifecycle?currentMonth=${currentMonth}&currentYear=${currentYear}&prevMonth=${prev.month}&prevYear=${prev.year}`);
+  lastLifecycle = await r.json();
+
+  const converted = lastLifecycle.filter(c=>c.from_status===2&&c.to_status===1).length;
+  const expired   = lastLifecycle.filter(c=>c.to_status===3).length;
+  const reengaged = lastLifecycle.filter(c=>c.from_status===3&&c.to_status===2).length;
+  document.getElementById('lc-converted').textContent = converted;
+  document.getElementById('lc-expired').textContent   = expired;
+  document.getElementById('lc-reengaged').textContent = reengaged;
+  sum.classList.toggle('hidden', lastLifecycle.length===0);
+
+  if (!lastLifecycle.length) {
+    el.innerHTML = '<p class="text-slate-300 text-sm text-center py-6">No status changes from previous month</p>';
+    return;
+  }
+  el.innerHTML = lastLifecycle.map(c=>`
+    <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 hover:bg-slate-100">
+      <span class="text-sm font-semibold text-slate-700 truncate max-w-32">${c.company_id}</span>
+      <div class="flex items-center gap-2">
+        <span class="px-2 py-0.5 rounded-full text-xs font-bold ${badge(c.from_status)}">${c.from_label}</span>
+        <svg class="w-3 h-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+        <span class="px-2 py-0.5 rounded-full text-xs font-bold ${badge(c.to_status)}">${c.to_label}</span>
+      </div>
+    </div>`).join('');
+}
+
+function badge(s) {
+  if (s===1) return 'bg-emerald-100 text-emerald-700';
+  if (s===2) return 'bg-blue-100 text-blue-700';
+  return 'bg-red-100 text-red-600';
+}
+
+// ── FY TREND CHART ────────────────────────────────────
+async function loadFYTrend() {
+  document.getElementById('trend-fy-label').textContent = currentFY;
+  if (!fyMonths.length) return;
+  const kpiList = await Promise.all(
+    fyMonths.map(m => fetch(`${API}/dashboard/kpis?month=${m.month}&year=${m.year}`).then(r => r.json()))
+  );
+  const labels = fyMonths.map(m => `${m.month.slice(0,3)} '${String(m.year).slice(2)}`);
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'Active',       data:kpiList.map(k=>k.active),       borderColor:'#10b981', backgroundColor:'rgba(16,185,129,0.08)', borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#10b981', tension:0.35, fill:true },
+        { label:'Demo',         data:kpiList.map(k=>k.demo),         borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.07)', borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#3b82f6', tension:0.35, fill:true },
+        { label:'Demo Expired', data:kpiList.map(k=>k.demo_expired), borderColor:'#f43f5e', backgroundColor:'rgba(244,63,94,0.06)',  borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#f43f5e', tension:0.35, fill:true },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'top', labels:{ usePointStyle:true, padding:14, font:{size:11} } } },
+      scales:{
+        x:{ grid:{display:false}, ticks:{font:{size:10}} },
+        y:{ min:0, grid:{color:'rgba(0,0,0,0.05)'}, ticks:{font:{size:10}, stepSize:1} }
+      }
+    }
+  });
+}
+
+async function loadCompanies(month, year) {
+  const r = await fetch(`${API}/dashboard/companies?month=${month}&year=${year}`);
+  allCompanies = await r.json();
+  renderTable(allCompanies);
+  renderRegionChart();
+  renderRegionChips();
+}
+
+function renderTable(data) {
+  const tb = document.getElementById('companies-tbody');
+  if (!data.length) { tb.innerHTML='<tr><td colspan="6" class="text-center text-slate-300 py-10 text-sm">No companies found</td></tr>'; return; }
+  tb.innerHTML = data.map(c=>`
+    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+      <td class="px-5 py-3 text-xs text-slate-400 font-mono">${c.company_id}</td>
+      <td class="px-5 py-3 text-sm font-semibold text-slate-800">${c.company_name}</td>
+      <td class="px-5 py-3"><span class="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-semibold uppercase tracking-wide">${c.instance||'—'}</span></td>
+      <td class="px-5 py-3"><span class="px-2.5 py-1 rounded-full text-xs font-bold ${badge(c.company_status)}">${c.status_label}</span></td>
+      <td class="px-5 py-3 text-xs text-slate-400">${c.created_at?new Date(c.created_at).toLocaleDateString('en-GB'):'—'}</td>
+      <td class="px-5 py-3">
+        <button class="notes-btn flex items-center gap-1 text-xs ${c.notes?'text-purple-600 font-semibold':'text-slate-300 hover:text-slate-500'} transition-colors"
+          data-id="${c.company_id}"
+          data-name="${(c.company_name||'').replace(/"/g,'&quot;')}"
+          data-notes="${(c.notes||'').replace(/"/g,'&quot;')}">
+          <svg class="w-3.5 h-3.5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          ${c.notes ? 'Edit' : 'Add'}
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+async function loadAttention(month, year) {
+  const r = await fetch(`${API}/dashboard/attention?month=${month}&year=${year}`);
+  const data = await r.json();
+  const el = document.getElementById('attention-list');
+  if (!data.length) { el.innerHTML='<p class="text-slate-300 text-sm col-span-full text-center py-4">No companies require attention ✓</p>'; return; }
+  el.innerHTML = data.map(c=>`
+    <div class="bg-red-50 border border-red-100 rounded-xl p-4 hover:shadow-sm transition-shadow">
+      <p class="text-sm font-bold text-red-600 truncate">${c.company_name}</p>
+      <p class="text-xs text-slate-400 mt-1 uppercase tracking-wide">${c.instance||'—'}</p>
+      <p class="text-xs text-slate-300 mt-0.5 font-mono">${c.company_id}</p>
+    </div>`).join('');
+}
+
+// ── REGION CHART ──────────────────────────────────────
+function renderRegionChart() {
+  const LABEL = { us:'US', india:'India', europe:'Europe', uae:'UAE' };
+  const regions = [...new Set(allCompanies.map(c => (c.instance||'unknown').toLowerCase()))].sort();
+  if (!regions.length) { if (regionChart) { regionChart.destroy(); regionChart=null; } return; }
+  const ctx = document.getElementById('regionChart').getContext('2d');
+  if (regionChart) regionChart.destroy();
+  regionChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: regions.map(r => LABEL[r] || r.toUpperCase()),
+      datasets: [
+        { label:'Active',       data:regions.map(r=>allCompanies.filter(c=>(c.instance||'unknown').toLowerCase()===r&&c.company_status===1).length), backgroundColor:'#10b981', borderRadius:3 },
+        { label:'Demo',         data:regions.map(r=>allCompanies.filter(c=>(c.instance||'unknown').toLowerCase()===r&&c.company_status===2).length), backgroundColor:'#3b82f6', borderRadius:3 },
+        { label:'Demo Expired', data:regions.map(r=>allCompanies.filter(c=>(c.instance||'unknown').toLowerCase()===r&&c.company_status===3).length), backgroundColor:'#f43f5e', borderRadius:3 },
+      ]
+    },
+    options: {
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'top', labels:{ usePointStyle:true, padding:12, font:{size:10} } } },
+      scales:{
+        x:{ stacked:true, grid:{color:'rgba(0,0,0,0.05)'}, ticks:{font:{size:10}} },
+        y:{ stacked:true, grid:{display:false}, ticks:{font:{size:10}} }
+      }
+    }
+  });
+}
+
+// ── REGION CHIPS ──────────────────────────────────────
+function renderRegionChips() {
+  const LABEL = { us:'US', india:'India', europe:'Europe', uae:'UAE' };
+  const container = document.getElementById('region-chips');
+  const activeVal = container.dataset.active || '';
+  const regions = [...new Set(allCompanies.map(c => (c.instance||'').toLowerCase()).filter(Boolean))].sort();
+  const chips = [{ v:'', l:'All' }, ...regions.map(r => ({ v:r, l: LABEL[r] || r.toUpperCase() }))];
+  container.innerHTML = chips.map(({v,l}) => {
+    const on = v === activeVal;
+    return `<button class="region-chip px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${on?'bg-purple-600 text-white border-purple-600':'bg-white text-slate-500 border-slate-200 hover:border-purple-500 hover:text-purple-600'}" data-region="${v}">${l}</button>`;
+  }).join('');
+}
+
+function setupRegionChips() {
+  document.getElementById('region-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.region-chip');
+    if (!chip) return;
+    document.getElementById('region-chips').dataset.active = chip.dataset.region;
+    renderRegionChips();
+    filterCompanies();
+  });
+}
+
+function clearDashboard() {
+  ['kpi-active','kpi-demo','kpi-expired','kpi-total'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('lifecycle-list').innerHTML='<p class="text-slate-300 text-sm text-center py-8">No data for this FY yet</p>';
+  document.getElementById('attention-list').innerHTML='<p class="text-slate-300 text-sm col-span-full text-center py-4">No data</p>';
+  document.getElementById('companies-tbody').innerHTML='<tr><td colspan="5" class="text-center text-slate-300 py-10 text-sm">No data for this FY yet</td></tr>';
+  if (trendChart)  { trendChart.destroy();  trendChart=null;  }
+  if (regionChart) { regionChart.destroy(); regionChart=null; }
+  document.getElementById('trend-fy-label').textContent = '';
+  document.getElementById('region-chips').innerHTML = '<button class="region-chip px-3 py-1.5 rounded-full text-xs font-semibold border bg-purple-600 text-white border-purple-600" data-region="">All</button>';
+  document.getElementById('region-chips').dataset.active = '';
+}
+
+// ── FILTERS ───────────────────────────────────────────
+function setupFilters() {
+  document.getElementById('month-select').addEventListener('change', loadDashboard);
+  document.getElementById('filter-status').addEventListener('change', filterCompanies);
+  document.getElementById('search-input').addEventListener('input', filterCompanies);
+  setupRegionChips();
+}
+function filterCompanies() {
+  const s = document.getElementById('filter-status').value;
+  const i = document.getElementById('region-chips').dataset.active || '';
+  const q = document.getElementById('search-input').value.toLowerCase();
+  renderTable(allCompanies.filter(c=>
+    (!s||String(c.company_status)===s)&&
+    (!i||(c.instance||'').toLowerCase()===i)&&
+    (!q||c.company_name.toLowerCase().includes(q)||String(c.company_id).toLowerCase().includes(q))
+  ));
+}
+
+// ── NOTES MODAL ───────────────────────────────────────
+function setupNotesModal() {
+  document.getElementById('notes-cancel-btn').addEventListener('click', closeNotes);
+  document.getElementById('notes-modal').addEventListener('click', e => { if(e.target===document.getElementById('notes-modal')) closeNotes(); });
+  document.getElementById('notes-save-btn').addEventListener('click', saveNotes);
+
+  // Event delegation — handles dynamically rendered rows
+  document.getElementById('companies-tbody').addEventListener('click', e => {
+    const btn = e.target.closest('.notes-btn');
+    if (!btn) return;
+    const id    = btn.dataset.id;
+    const name  = btn.dataset.name;
+    const notes = btn.dataset.notes;
+    document.getElementById('notes-company-id').textContent  = id;
+    document.getElementById('notes-company-name').textContent = name;
+    document.getElementById('notes-input').value             = notes || '';
+    document.getElementById('notes-modal')._companyId        = id;
+    document.getElementById('notes-modal').classList.remove('hidden');
+  });
+}
+
+async function saveNotes() {
+  const modal = document.getElementById('notes-modal');
+  const companyId = modal._companyId;
+  const notes = document.getElementById('notes-input').value.trim();
+  const btn = document.getElementById('notes-save-btn');
+  btn.textContent = 'Saving…'; btn.disabled = true;
+  try {
+    const r = await fetch(`${API}/dashboard/companies/${encodeURIComponent(companyId)}/notes`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ notes })
+    });
+    if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.error || `HTTP ${r.status}`); }
+    const sel = document.getElementById('month-select');
+    if (sel.value && sel.value.includes('|')) {
+      const [month, year] = sel.value.split('|');
+      await loadCompanies(month, +year);
+    }
+    closeNotes();
+    showToast('✓ Notes saved', 'success');
+  } catch(e) { showToast(`✗ Failed to save notes: ${e.message}`, 'error'); }
+  finally { btn.textContent = 'Save Notes'; btn.disabled = false; }
+}
+
+function closeNotes() { document.getElementById('notes-modal').classList.add('hidden'); }
+
+// ── UPLOAD MODAL ──────────────────────────────────────
+function setupUploadModal() {
+  const modal=document.getElementById('upload-modal');
+  const fi=document.getElementById('file-input');
+  const dz=document.getElementById('drop-zone');
+  const cb=document.getElementById('confirm-upload-btn');
+  const sel=document.getElementById('selected-file');
+
+  document.getElementById('upload-btn').addEventListener('click',()=>modal.classList.remove('hidden'));
+  document.getElementById('cancel-btn').addEventListener('click',closeUpload);
+  modal.addEventListener('click',e=>{if(e.target===modal)closeUpload();});
+
+  dz.addEventListener('click',()=>fi.click());
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('border-vf-coral');});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('border-vf-coral'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('border-vf-coral');if(e.dataTransfer.files[0])setFile(e.dataTransfer.files[0]);});
+  fi.addEventListener('change',()=>{if(fi.files[0])setFile(fi.files[0]);});
+
+  function setFile(f){ sel.textContent=`Selected: ${f.name}`; sel.classList.remove('hidden'); cb.disabled=false; cb._file=f; }
+
+  function closeUpload(){ modal.classList.add('hidden'); fi.value=''; sel.classList.add('hidden'); cb.disabled=true; document.getElementById('upload-progress').classList.add('hidden'); document.getElementById('upload-password').value=''; document.getElementById('upload-error').classList.add('hidden'); }
+
+  cb.addEventListener('click', async()=>{
+    if(!cb._file) return;
+    document.getElementById('upload-progress').classList.remove('hidden');
+    cb.disabled=true;
+
+    const pw = document.getElementById('upload-password').value.trim();
+    document.getElementById('upload-error').classList.add('hidden');
+
+    const fd=new FormData();
+    fd.append('report',cb._file);
+    fd.append('month',document.getElementById('upload-month').value);
+    fd.append('year',document.getElementById('upload-year').value);
+    fd.append('password', pw);
+
+    try{
+      const r=await fetch(`${API}/import/upload`,{method:'POST',body:fd});
+      const d=await r.json();
+      closeUpload();
+      if(d.success){
+        showToast(`✓ Imported ${d.total} companies — ${d.month} ${d.year} (FY ${d.fiscalYear})`,'success');
+        await loadFiscalYears();
+        if(d.instanceErrors && d.instanceErrors.length > 0){
+          const list = d.instanceErrors.map(e=>`${e.company_name} (file: ${e.file_instance}, stored: ${e.db_instance})`).join(' · ');
+          setTimeout(()=>showToast(`⚠ ${d.instanceErrors.length} instance mismatch${d.instanceErrors.length>1?'es':''} — original kept. ${list}`,'warning'), 2000);
+        }
+      }
+      else if(d.error==='Incorrect password'){ document.getElementById('upload-error').classList.remove('hidden'); document.getElementById('upload-progress').classList.add('hidden'); cb.disabled=false; return; }
+      else showToast(`✗ ${d.error}`,'error');
+    }catch(e){ showToast(`✗ ${e.message}`,'error'); }
+    finally{ cb.disabled=false; }
+  });
+}
+
+// ── ERASE MODAL ───────────────────────────────────────
+function setupEraseModal() {
+  const modal=document.getElementById('erase-modal');
+  const pi=document.getElementById('erase-password-input');
+  const err=document.getElementById('erase-error');
+  const cb=document.getElementById('erase-confirm-btn');
+
+  document.getElementById('erase-btn').addEventListener('click',()=>{
+    const sel=document.getElementById('month-select');
+    if(!sel.value||!sel.value.includes('|')) return;
+    const [m,y]=sel.value.split('|');
+    document.getElementById('erase-month-label').textContent=`${m} ${y}`;
+    pi.value=''; err.classList.add('hidden');
+    modal.classList.remove('hidden');
+  });
+
+  document.getElementById('erase-cancel-btn').addEventListener('click',closeErase);
+  modal.addEventListener('click',e=>{if(e.target===modal)closeErase();});
+
+  cb.addEventListener('click', async()=>{
+    const pw=pi.value.trim(); if(!pw) return;
+    const [m,y]=document.getElementById('month-select').value.split('|');
+    cb.disabled=true; cb.textContent='Erasing…'; err.classList.add('hidden');
+    try{
+      const r=await fetch(`${API}/import/erase`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({month:m,year:+y,password:pw})});
+      const d=await r.json();
+      if(d.success){ closeErase(); showToast(`✓ Data for ${m} ${y} erased`,'success'); await loadFiscalYears(); }
+      else{ err.textContent=d.error||'Incorrect password'; err.classList.remove('hidden'); }
+    }catch(e){ err.textContent='Error: '+e.message; err.classList.remove('hidden'); }
+    finally{ cb.disabled=false; cb.textContent='Yes, Erase'; }
+  });
+
+  function closeErase(){ modal.classList.add('hidden'); pi.value=''; err.classList.add('hidden'); }
+}
+
+// ── PDF EXPORT ────────────────────────────────────────
+function setupPDF() {
+  document.getElementById('pdf-btn').addEventListener('click', () => generatePDF());
+}
+
+async function generatePDF() {
+  const sel = document.getElementById('month-select');
+  if (!sel.value || !sel.value.includes('|')) { showToast('Select a month first', 'error'); return; }
+  const [month, year] = sel.value.split('|');
+
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const PW = 210, ML = 14, MR = 14, CW = PW - ML - MR;
+  const NAVY  = [26, 5, 51];
+  const CORAL = [244, 63, 94];
+  const GREEN = [16, 185, 129];
+  const BLUE  = [59, 130, 246];
+  const PURPLE = [109, 40, 217];
+
+  // Load logo as base64
+  let logoDataUrl = null;
+  try {
+    const resp = await fetch('/logo.png');
+    const blob = await resp.blob();
+    logoDataUrl = await new Promise(res => { const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob); });
+  } catch(_) {}
+
+  // ── PAGE 1 HEADER ─────────────────────────────────────
+  doc.setFillColor(...NAVY);
+  doc.rect(0, 0, PW, 34, 'F');
+  doc.setFillColor(...CORAL);
+  doc.rect(0, 34, PW, 2.5, 'F');
+
+  if (logoDataUrl) {
+    try { doc.addImage(logoDataUrl, 'PNG', ML, 7, 22, 20); } catch(_) {}
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15); doc.setFont('helvetica', 'bold');
+    doc.text('Sales Intelligence Report', ML + 26, 17);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(196, 181, 253);
+    doc.text(`${month} ${year}  ·  FY ${currentFY}  ·  Exported ${new Date().toLocaleDateString('en-GB')}`, ML + 26, 26);
+  } else {
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(15); doc.setFont('helvetica', 'bold');
+    doc.text('Vantage Fit — Sales Intelligence Report', ML, 17);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'normal');
+    doc.setTextColor(196, 181, 253);
+    doc.text(`${month} ${year}  ·  FY ${currentFY}  ·  Exported ${new Date().toLocaleDateString('en-GB')}`, ML, 27);
+  }
+
+  // ── KPI BOXES ─────────────────────────────────────────
+  const kpiItems = [
+    { label: 'ACTIVE',        value: lastKPIs.active       ?? '—', color: GREEN  },
+    { label: 'DEMO',          value: lastKPIs.demo         ?? '—', color: BLUE   },
+    { label: 'DEMO EXPIRED',  value: lastKPIs.demo_expired ?? '—', color: CORAL  },
+    { label: 'TOTAL',         value: lastKPIs.total        ?? '—', color: PURPLE },
+  ];
+  const kBW = (CW - 9) / 4;
+  kpiItems.forEach((k, i) => {
+    const kx = ML + i * (kBW + 3), ky = 41;
+    doc.setFillColor(...k.color);
+    doc.roundedRect(kx, ky, kBW, 23, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(19); doc.setFont('helvetica', 'bold');
+    doc.text(String(k.value), kx + kBW / 2, ky + 13, { align: 'center' });
+    doc.setFontSize(6.5); doc.setFont('helvetica', 'normal');
+    doc.text(k.label, kx + kBW / 2, ky + 20, { align: 'center' });
+  });
+
+  let curY = 70;
+
+  const active  = allCompanies.filter(c => c.company_status === 1);
+  const demo    = allCompanies.filter(c => c.company_status === 2);
+  const expired = allCompanies.filter(c => c.company_status === 3);
+  const compRow = c => [
+    c.company_id, c.company_name, (c.instance || '').toUpperCase(),
+    c.created_at ? new Date(c.created_at).toLocaleDateString('en-GB') : '—',
+    c.notes || '—'
+  ];
+  const HEAD = [['ID', 'Company Name', 'Region', 'Created', 'Notes']];
+  const COLS = { 0:{cellWidth:26}, 1:{cellWidth:52}, 2:{cellWidth:16}, 3:{cellWidth:22}, 4:{cellWidth:'auto'} };
+  const MARG = { left: ML, right: MR, bottom: 15, top: 14 };
+
+  function band(title, count, color, y) {
+    doc.setFillColor(...color);
+    doc.rect(ML, y, CW, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+    doc.text(title, ML + 3, y + 5.5);
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal');
+    doc.text(String(count), PW - MR - 3, y + 5.5, { align: 'right' });
+    return y + 8;
+  }
+
+  function miniHdr(color) {
+    return (data) => {
+      if (data.pageNumber > 1) {
+        doc.setFillColor(...NAVY);
+        doc.rect(0, 0, PW, 11, 'F');
+        doc.setFillColor(...color);
+        doc.rect(0, 11, PW, 1.5, 'F');
+        doc.setTextColor(196, 181, 253);
+        doc.setFontSize(6.5); doc.setFont('helvetica', 'normal');
+        doc.text(`Vantage Fit Sales Intelligence  ·  ${month} ${year}  ·  FY ${currentFY}`, ML, 7.5);
+      }
+    };
+  }
+
+  function tableOpts(color, altFill, cb) {
+    return {
+      head: HEAD, margin: MARG,
+      headStyles: { fillColor: color, textColor: 255, fontSize: 7, fontStyle: 'bold', cellPadding: 2.5 },
+      bodyStyles: { fontSize: 7, textColor: [40, 40, 40], cellPadding: 2.5 },
+      alternateRowStyles: { fillColor: altFill },
+      theme: 'grid', columnStyles: COLS,
+      styles: { lineColor: [220, 220, 228], lineWidth: 0.2 },
+      didDrawPage: cb
+    };
+  }
+
+  // ── ACTIVE ────────────────────────────────────────────
+  curY = band('Active Companies', active.length, GREEN, curY);
+  autoTable(doc, { ...tableOpts(GREEN, [240, 253, 244], miniHdr(GREEN)), startY: curY,
+    body: active.length ? active.map(compRow) : [['No active companies', '', '', '', '']] });
+  curY = doc.lastAutoTable.finalY + 8;
+
+  // ── DEMO ──────────────────────────────────────────────
+  if (curY > 255) { doc.addPage(); curY = 14; }
+  curY = band('Demo Companies', demo.length, BLUE, curY);
+  autoTable(doc, { ...tableOpts(BLUE, [239, 246, 255], miniHdr(BLUE)), startY: curY,
+    body: demo.length ? demo.map(compRow) : [['No demo companies', '', '', '', '']] });
+  curY = doc.lastAutoTable.finalY + 8;
+
+  // ── DEMO EXPIRED ──────────────────────────────────────
+  if (curY > 255) { doc.addPage(); curY = 14; }
+  curY = band('Demo Expired Companies', expired.length, CORAL, curY);
+  autoTable(doc, { ...tableOpts(CORAL, [255, 241, 242], miniHdr(CORAL)), startY: curY,
+    body: expired.length ? expired.map(compRow) : [['No expired companies', '', '', '', '']] });
+  curY = doc.lastAutoTable.finalY + 8;
+
+  // ── LIFECYCLE ─────────────────────────────────────────
+  if (curY > 245) { doc.addPage(); curY = 14; }
+  curY = band(`Lifecycle Movement — vs Previous Month`, lastLifecycle.length, NAVY, curY);
+  autoTable(doc, {
+    startY: curY,
+    head: [['Company ID', 'Previous Status', '→', 'Current Status']],
+    body: lastLifecycle.length
+      ? lastLifecycle.map(c => [c.company_id, c.from_label, '→', c.to_label])
+      : [['No lifecycle changes this month', '', '', '']],
+    headStyles: { fillColor: NAVY, textColor: 255, fontSize: 7, fontStyle: 'bold', cellPadding: 2.5 },
+    bodyStyles: { fontSize: 7, textColor: [40, 40, 40], cellPadding: 2.5 },
+    alternateRowStyles: { fillColor: [248, 246, 254] },
+    margin: MARG, theme: 'grid',
+    columnStyles: { 2: { halign: 'center', cellWidth: 12 } },
+    styles: { lineColor: [220, 220, 228], lineWidth: 0.2 },
+    didDrawPage: miniHdr(NAVY)
+  });
+
+  // ── FOOTER ALL PAGES ──────────────────────────────────
+  const totalPages = doc.getNumberOfPages();
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFillColor(...NAVY);
+    doc.rect(0, 287, PW, 10, 'F');
+    doc.setTextColor(196, 181, 253);
+    doc.setFontSize(6.5); doc.setFont('helvetica', 'normal');
+    doc.text('Vantage Fit Sales Intelligence  ·  Confidential — Internal Use Only', ML, 293);
+    doc.text(`Page ${p} of ${totalPages}`, PW - MR, 293, { align: 'right' });
+  }
+
+  doc.save(`VantageFit_Sales_${month}_${year}.pdf`);
+  showToast('✓ PDF downloaded successfully', 'success');
+}
+
+// ── TOAST ─────────────────────────────────────────────
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  const styles = {
+    success: 'bg-emerald-500 text-white',
+    error:   'bg-red-500 text-white',
+    warning: 'bg-amber-500 text-white'
+  };
+  t.className = `fixed top-20 right-6 z-50 px-5 py-3 rounded-xl text-sm font-semibold shadow-xl max-w-md leading-relaxed ${styles[type]||styles.error}`;
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  setTimeout(()=>t.classList.add('hidden'), type==='warning' ? 8000 : 4000);
+}
+
+init();
+</script>
+</Layout>
