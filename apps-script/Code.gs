@@ -33,6 +33,8 @@ function doGet(e) {
   try {
     let result;
     switch (p.action) {
+      case 'loadAll':        result = loadAll(p.fy || '', p.month || '', +p.year || 0);                                        break;
+      case 'loadMonthData':  result = loadMonthData(p.month, +p.year, p.prevMonth || '', +p.prevYear || 0);                   break;
       case 'getFiscalYears': result = getFiscalYears();                                                                       break;
       case 'getMonthsForFY': result = getMonthsForFY(p.fy);                                                                   break;
       case 'getKPIs':        result = getKPIs(p.month, +p.year);                                                              break;
@@ -373,6 +375,105 @@ function eraseMonth(month, year) {
   }
 
   return { success: true, deleted, month, year };
+}
+
+// ── Batch endpoints (read sheets once, return everything) ─────────────────────
+
+function loadAll(fy, month, year) {
+  const snapRows = getRows(S_SNAPSHOTS);
+  const compRows = getRows(S_COMPANIES);
+
+  // Build fiscal year list (always include current + next even if empty)
+  const fySet = [...new Set(snapRows.map(r => r.fiscal_year))].filter(Boolean);
+  const now   = new Date();
+  const m     = now.getMonth() + 1, y = now.getFullYear();
+  const cfy   = m >= 4 ? `${y}-${y+1}` : `${y-1}-${y}`;
+  const nfy   = (s => `${s+1}-${s+2}`)(parseInt(cfy.split('-')[0]));
+  if (!fySet.includes(cfy)) fySet.push(cfy);
+  if (!fySet.includes(nfy)) fySet.push(nfy);
+  fySet.sort();
+
+  const activeFY = (fy && fySet.includes(fy)) ? fy : fySet[0];
+  const months   = _monthsForFY(snapRows, activeFY);
+
+  const last         = months.length ? months[months.length - 1] : null;
+  const activeMonth  = (month && months.find(m => m.month === month && m.year === +year)) ? month : (last ? last.month : '');
+  const activeYear   = (month && months.find(m => m.month === month && m.year === +year)) ? +year  : (last ? last.year  : 0);
+
+  let kpis = null, lifecycle = [], companies = [], attention = [], fyTrend = [];
+
+  if (activeMonth && activeYear) {
+    kpis      = _kpis(snapRows, activeMonth, activeYear);
+    companies = _companies(snapRows, compRows, activeMonth, activeYear, '', '');
+    attention = companies.filter(c => c.company_status === 3)
+                         .map(({ company_id, company_name, instance }) => ({ company_id, company_name, instance }));
+    const idx = months.findIndex(m => m.month === activeMonth && m.year === activeYear);
+    if (idx > 0) lifecycle = _lifecycle(snapRows, activeMonth, activeYear, months[idx-1].month, months[idx-1].year);
+    fyTrend = months.map(m => _kpis(snapRows, m.month, m.year));
+  }
+
+  return { fiscalYears: fySet, activeFY, months, activeMonth, activeYear, kpis, lifecycle, companies, attention, fyTrend };
+}
+
+function loadMonthData(month, year, prevMonth, prevYear) {
+  const snapRows = getRows(S_SNAPSHOTS);
+  const compRows = getRows(S_COMPANIES);
+  const kpis      = _kpis(snapRows, month, year);
+  const companies = _companies(snapRows, compRows, month, year, '', '');
+  const attention = companies.filter(c => c.company_status === 3)
+                             .map(({ company_id, company_name, instance }) => ({ company_id, company_name, instance }));
+  const lifecycle = (prevMonth && prevYear) ? _lifecycle(snapRows, month, year, prevMonth, prevYear) : [];
+  return { kpis, companies, attention, lifecycle };
+}
+
+// ── Private helpers (accept pre-loaded row arrays) ────────────────────────────
+
+function _monthsForFY(snapRows, fy) {
+  const seen = new Set(), result = [];
+  snapRows.filter(r => r.fiscal_year === fy).forEach(r => {
+    const key = r.month + '|' + r.year;
+    if (!seen.has(key)) { seen.add(key); result.push({ month: r.month, year: +r.year }); }
+  });
+  return result.sort((a, b) => a.year !== b.year ? a.year - b.year : FY_ORDER.indexOf(a.month) - FY_ORDER.indexOf(b.month));
+}
+
+function _kpis(snapRows, month, year) {
+  const kpis = { active: 0, demo: 0, demo_expired: 0, total: 0 };
+  snapRows.filter(r => r.month === month && +r.year === year).forEach(r => {
+    const s = +r.company_status;
+    if (s === 1) kpis.active++;
+    if (s === 2) kpis.demo++;
+    if (s === 3) kpis.demo_expired++;
+    kpis.total++;
+  });
+  return kpis;
+}
+
+function _lifecycle(snapRows, curMonth, curYear, prevMonth, prevYear) {
+  const prevMap = {};
+  snapRows.filter(r => r.month === prevMonth && +r.year === prevYear)
+          .forEach(r => { prevMap[String(r.company_id)] = r; });
+  const changes = [];
+  snapRows.filter(r => r.month === curMonth && +r.year === curYear).forEach(curr => {
+    const prev = prevMap[String(curr.company_id)];
+    if (prev && +prev.company_status !== +curr.company_status) {
+      changes.push({ company_id: curr.company_id, from_status: +prev.company_status, from_label: prev.status_label, to_status: +curr.company_status, to_label: curr.status_label });
+    }
+  });
+  return changes;
+}
+
+function _companies(snapRows, compRows, month, year, status, instance) {
+  const compMap = {};
+  compRows.forEach(c => { compMap[String(c.company_id)] = c; });
+  const result = [];
+  for (const s of snapRows.filter(r => r.month === month && +r.year === year)) {
+    const c = compMap[String(s.company_id)] || {};
+    if (status   && +s.company_status !== +status)                    continue;
+    if (instance && (c.instance||'').toLowerCase() !== instance.toLowerCase()) continue;
+    result.push({ company_id: s.company_id, company_name: c.company_name||String(s.company_id), instance: c.instance||'', created_at: serializeDate(c.created_at), notes: c.notes||'', company_status: +s.company_status, status_label: s.status_label });
+  }
+  return result.sort((a, b) => String(a.company_name).localeCompare(String(b.company_name)));
 }
 
 // ── One-time setup — run this manually from the Apps Script editor ─────────────

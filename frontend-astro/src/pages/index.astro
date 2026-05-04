@@ -374,7 +374,8 @@ function parseExcelFile(file) {
 // ── INIT ──────────────────────────────────────────────
 async function init() {
   document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleString()}`;
-  await loadFiscalYears();
+  const data = await apiGet({ action: 'loadAll' });
+  applyFullData(data);
   setupUploadModal();
   setupEraseModal();
   setupNotesModal();
@@ -382,61 +383,85 @@ async function init() {
   setupPDF();
 }
 
-// ── FISCAL YEARS ──────────────────────────────────────
-function getCurrentFY() {
-  const m = new Date().getMonth() + 1, y = new Date().getFullYear();
-  return m >= 4 ? `${y}-${y+1}` : `${y-1}-${y}`;
-}
-function getNextFY(fy) {
-  const s = parseInt(fy.split('-')[0]);
-  return `${s+1}-${s+2}`;
-}
-
-async function loadFiscalYears() {
-  let fys = await apiGet({ action: 'getFiscalYears' });
-  const cfy = getCurrentFY();
-  if (!fys.includes(cfy)) fys.push(cfy);
-  if (!fys.includes(getNextFY(cfy))) fys.push(getNextFY(cfy));
-  fys.sort();
+// ── APPLY FULL DATA (one-shot render after loadAll) ───
+function applyFullData(data) {
+  currentFY = data.activeFY;
+  fyMonths  = data.months || [];
 
   const tabsEl = document.getElementById('fy-tabs');
-  tabsEl.innerHTML = fys.map((fy, i) => `
-    <button class="fy-tab px-6 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${i===0?'border-vf-coral text-vf-coral':'border-transparent text-slate-400 hover:text-slate-600'}" data-fy="${fy}">
+  tabsEl.innerHTML = (data.fiscalYears || []).map(fy => `
+    <button class="fy-tab px-6 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${fy===data.activeFY?'border-vf-coral text-vf-coral':'border-transparent text-slate-400 hover:text-slate-600'}" data-fy="${fy}">
       FY ${fy}
     </button>`).join('');
   tabsEl.querySelectorAll('.fy-tab').forEach(btn => btn.addEventListener('click', () => switchFY(btn.dataset.fy)));
-  if (fys.length) await switchFY(fys[0]);
+
+  const sel = document.getElementById('month-select');
+  sel.innerHTML = fyMonths.length
+    ? fyMonths.map(m => `<option value="${m.month}|${m.year}" ${m.month===data.activeMonth&&+m.year===+data.activeYear?'selected':''}>${m.month} ${m.year}</option>`).join('')
+    : '<option value="">No data for this FY yet</option>';
+
+  if (!fyMonths.length) { clearDashboard(); return; }
+
+  if (data.kpis) {
+    lastKPIs = data.kpis;
+    document.getElementById('kpi-active').textContent  = data.kpis.active;
+    document.getElementById('kpi-demo').textContent    = data.kpis.demo;
+    document.getElementById('kpi-expired').textContent = data.kpis.demo_expired;
+    document.getElementById('kpi-total').textContent   = data.kpis.total;
+    renderChart(data.kpis);
+  }
+
+  lastLifecycle = data.lifecycle || [];
+  const activeIdx = fyMonths.findIndex(m => m.month === data.activeMonth && m.year === +data.activeYear);
+  renderLifecycle(lastLifecycle, activeIdx);
+
+  allCompanies = data.companies || [];
+  renderTable(allCompanies);
+  renderRegionChart();
+  renderRegionChips();
+  renderAttention(data.attention || []);
+  renderFYTrend(data.fyTrend || [], fyMonths);
 }
 
+// ── FY SWITCH (1 API call) ────────────────────────────
 async function switchFY(fy) {
-  currentFY = fy;
   document.querySelectorAll('.fy-tab').forEach(btn => {
     const a = btn.dataset.fy === fy;
     btn.className = `fy-tab px-6 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${a?'border-vf-coral text-vf-coral':'border-transparent text-slate-400 hover:text-slate-600'}`;
   });
-  fyMonths = await apiGet({ action: 'getMonthsForFY', fy });
-  const sel = document.getElementById('month-select');
-  sel.innerHTML = fyMonths.length
-    ? fyMonths.map((m,i) => `<option value="${m.month}|${m.year}" ${i===fyMonths.length-1?'selected':''}>${m.month} ${m.year}</option>`).join('')
-    : '<option value="">No data for this FY yet</option>';
-  if (fyMonths.length) { await Promise.all([loadDashboard(), loadFYTrend()]); } else { clearDashboard(); }
+  const data = await apiGet({ action: 'loadAll', fy });
+  applyFullData(data);
 }
 
-// ── DASHBOARD ─────────────────────────────────────────
+// ── MONTH SWITCH (1 API call) ─────────────────────────
 async function loadDashboard() {
   const sel = document.getElementById('month-select');
   if (!sel.value || !sel.value.includes('|')) return;
   const [month, year] = sel.value.split('|');
-  await Promise.all([loadKPIs(month,+year), loadLifecycle(month,+year), loadCompanies(month,+year), loadAttention(month,+year)]);
+  const idx  = fyMonths.findIndex(m => m.month === month && m.year === +year);
+  const prev = idx > 0 ? fyMonths[idx - 1] : null;
+  const data = await apiGet({ action: 'loadMonthData', month, year, prevMonth: prev?.month || '', prevYear: prev?.year || 0 });
+  lastKPIs = data.kpis;
+  document.getElementById('kpi-active').textContent  = data.kpis.active;
+  document.getElementById('kpi-demo').textContent    = data.kpis.demo;
+  document.getElementById('kpi-expired').textContent = data.kpis.demo_expired;
+  document.getElementById('kpi-total').textContent   = data.kpis.total;
+  renderChart(data.kpis);
+  lastLifecycle = data.lifecycle;
+  renderLifecycle(data.lifecycle, idx);
+  allCompanies = data.companies;
+  renderTable(allCompanies);
+  renderRegionChart();
+  renderRegionChips();
+  renderAttention(data.attention);
 }
 
-async function loadKPIs(month, year) {
-  lastKPIs = await apiGet({ action: 'getKPIs', month, year });
-  document.getElementById('kpi-active').textContent  = lastKPIs.active;
-  document.getElementById('kpi-demo').textContent    = lastKPIs.demo;
-  document.getElementById('kpi-expired').textContent = lastKPIs.demo_expired;
-  document.getElementById('kpi-total').textContent   = lastKPIs.total;
-  renderChart(lastKPIs);
+// ── REFRESH (after import or erase) ──────────────────
+async function refreshAll() {
+  const sel = document.getElementById('month-select');
+  const [month, year] = sel.value?.includes('|') ? sel.value.split('|') : ['', ''];
+  const data = await apiGet({ action: 'loadAll', fy: currentFY, month, year });
+  applyFullData(data);
 }
 
 function renderChart(kpis) {
@@ -454,31 +479,26 @@ function renderChart(kpis) {
   });
 }
 
-async function loadLifecycle(currentMonth, currentYear) {
-  const idx = fyMonths.findIndex(m => m.month===currentMonth && m.year===+currentYear);
-  const el = document.getElementById('lifecycle-list');
+function renderLifecycle(changes, monthIdx) {
+  const el  = document.getElementById('lifecycle-list');
   const sum = document.getElementById('lifecycle-summary');
-  if (idx <= 0) {
+  if (monthIdx <= 0) {
     sum.classList.add('hidden');
     el.innerHTML = '<p class="text-slate-300 text-sm text-center py-8">No previous month to compare</p>';
     return;
   }
-  const prev = fyMonths[idx-1];
-  lastLifecycle = await apiGet({ action: 'getLifecycle', currentMonth, currentYear, prevMonth: prev.month, prevYear: prev.year });
-
-  const converted = lastLifecycle.filter(c=>c.from_status===2&&c.to_status===1).length;
-  const expired   = lastLifecycle.filter(c=>c.to_status===3).length;
-  const reengaged = lastLifecycle.filter(c=>c.from_status===3&&c.to_status===2).length;
+  const converted = changes.filter(c=>c.from_status===2&&c.to_status===1).length;
+  const expired   = changes.filter(c=>c.to_status===3).length;
+  const reengaged = changes.filter(c=>c.from_status===3&&c.to_status===2).length;
   document.getElementById('lc-converted').textContent = converted;
   document.getElementById('lc-expired').textContent   = expired;
   document.getElementById('lc-reengaged').textContent = reengaged;
-  sum.classList.toggle('hidden', lastLifecycle.length===0);
-
-  if (!lastLifecycle.length) {
+  sum.classList.toggle('hidden', changes.length===0);
+  if (!changes.length) {
     el.innerHTML = '<p class="text-slate-300 text-sm text-center py-6">No status changes from previous month</p>';
     return;
   }
-  el.innerHTML = lastLifecycle.map(c=>`
+  el.innerHTML = changes.map(c=>`
     <div class="flex items-center justify-between px-3 py-2 rounded-lg bg-slate-50 hover:bg-slate-100">
       <span class="text-sm font-semibold text-slate-700 truncate max-w-32">${c.company_id}</span>
       <div class="flex items-center gap-2">
@@ -496,13 +516,10 @@ function badge(s) {
 }
 
 // ── FY TREND CHART ────────────────────────────────────
-async function loadFYTrend() {
+function renderFYTrend(kpiList, months) {
   document.getElementById('trend-fy-label').textContent = currentFY;
-  if (!fyMonths.length) return;
-  const kpiList = await Promise.all(
-    fyMonths.map(m => apiGet({ action: 'getKPIs', month: m.month, year: m.year }))
-  );
-  const labels = fyMonths.map(m => `${m.month.slice(0,3)} '${String(m.year).slice(2)}`);
+  if (!months.length || !kpiList.length) return;
+  const labels = months.map(m => `${m.month.slice(0,3)} '${String(m.year).slice(2)}`);
   const ctx = document.getElementById('trendChart').getContext('2d');
   if (trendChart) trendChart.destroy();
   trendChart = new Chart(ctx, {
@@ -524,13 +541,6 @@ async function loadFYTrend() {
       }
     }
   });
-}
-
-async function loadCompanies(month, year) {
-  allCompanies = await apiGet({ action: 'getCompanies', month, year });
-  renderTable(allCompanies);
-  renderRegionChart();
-  renderRegionChips();
 }
 
 function renderTable(data) {
@@ -555,8 +565,7 @@ function renderTable(data) {
     </tr>`).join('');
 }
 
-async function loadAttention(month, year) {
-  const data = await apiGet({ action: 'getAttention', month, year });
+function renderAttention(data) {
   const el = document.getElementById('attention-list');
   if (!data.length) { el.innerHTML='<p class="text-slate-300 text-sm col-span-full text-center py-4">No companies require attention ✓</p>'; return; }
   el.innerHTML = data.map(c=>`
@@ -678,11 +687,8 @@ async function saveNotes() {
   try {
     const d = await apiPost({ action: 'updateNotes', key: SECRET_KEY, company_id: companyId, notes });
     if (!d.success) throw new Error(d.error || 'Failed to save notes');
-    const sel = document.getElementById('month-select');
-    if (sel.value && sel.value.includes('|')) {
-      const [month, year] = sel.value.split('|');
-      await loadCompanies(month, +year);
-    }
+    const co = allCompanies.find(c => String(c.company_id) === String(companyId));
+    if (co) { co.notes = notes; renderTable(allCompanies); }
     closeNotes();
     showToast('✓ Notes saved', 'success');
   } catch(e) { showToast(`✗ Failed to save notes: ${e.message}`, 'error'); }
@@ -729,7 +735,7 @@ function setupUploadModal() {
       closeUpload();
       if(d.success){
         showToast(`✓ Imported ${d.total} companies — ${d.month} ${d.year} (FY ${d.fiscalYear})`,'success');
-        await loadFiscalYears();
+        await refreshAll();
         if(d.instanceErrors && d.instanceErrors.length > 0){
           const list = d.instanceErrors.map(e=>`${e.company_name} (file: ${e.file_instance}, stored: ${e.db_instance})`).join(' · ');
           setTimeout(()=>showToast(`⚠ ${d.instanceErrors.length} instance mismatch${d.instanceErrors.length>1?'es':''} — original kept. ${list}`,'warning'), 2000);
@@ -767,7 +773,7 @@ function setupEraseModal() {
     cb.disabled=true; cb.textContent='Erasing…'; err.classList.add('hidden');
     try{
       const d = await apiPost({ action: 'eraseMonth', month: m, year: +y, password: pw });
-      if(d.success){ closeErase(); showToast(`✓ Data for ${m} ${y} erased`,'success'); await loadFiscalYears(); }
+      if(d.success){ closeErase(); showToast(`✓ Data for ${m} ${y} erased`,'success'); await refreshAll(); }
       else{ err.textContent=d.error||'Incorrect password'; err.classList.remove('hidden'); }
     }catch(e){ err.textContent='Error: '+e.message; err.classList.remove('hidden'); }
     finally{ cb.disabled=false; cb.textContent='Yes, Erase'; }
