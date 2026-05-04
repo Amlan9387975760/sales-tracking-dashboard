@@ -35,6 +35,7 @@ function doGet(e) {
     switch (p.action) {
       case 'loadAll':        result = loadAll(p.fy || '', p.month || '', +p.year || 0);                                        break;
       case 'loadMonthData':  result = loadMonthData(p.month, +p.year, p.prevMonth || '', +p.prevYear || 0);                   break;
+      case 'getFYRoster':    result = _fyRoster(getRows(S_SNAPSHOTS), getRows(S_COMPANIES), p.fy);                            break;
       case 'getFiscalYears': result = getFiscalYears();                                                                       break;
       case 'getMonthsForFY': result = getMonthsForFY(p.fy);                                                                   break;
       case 'getKPIs':        result = getKPIs(p.month, +p.year);                                                              break;
@@ -412,7 +413,9 @@ function loadAll(fy, month, year) {
     fyTrend = months.map(m => _kpis(snapRows, m.month, m.year));
   }
 
-  return { fiscalYears: fySet, activeFY, months, activeMonth, activeYear, kpis, lifecycle, companies, attention, fyTrend };
+  const fyRoster = _fyRoster(snapRows, compRows, activeFY);
+
+  return { fiscalYears: fySet, activeFY, months, activeMonth, activeYear, kpis, lifecycle, companies, attention, fyTrend, fyRoster };
 }
 
 function loadMonthData(month, year, prevMonth, prevYear) {
@@ -461,6 +464,40 @@ function _lifecycle(snapRows, curMonth, curYear, prevMonth, prevYear) {
     }
   });
   return changes;
+}
+
+function _fyRoster(snapRows, compRows, fy) {
+  const months = _monthsForFY(snapRows, fy);
+  if (!months.length) return [];
+
+  const compMap = {};
+  compRows.forEach(c => { compMap[String(c.company_id)] = c; });
+
+  const latest = {};
+  for (const m of months) {
+    snapRows.filter(r => r.month === m.month && +r.year === m.year).forEach(s => {
+      latest[String(s.company_id)] = {
+        company_id:     s.company_id,
+        company_status: +s.company_status,
+        status_label:   s.status_label,
+        last_month:     m.month,
+        last_year:      m.year
+      };
+    });
+  }
+
+  return Object.values(latest).map(r => {
+    const c = compMap[String(r.company_id)] || {};
+    return {
+      company_id:     r.company_id,
+      company_name:   c.company_name || String(r.company_id),
+      instance:       c.instance     || '',
+      company_status: r.company_status,
+      status_label:   r.status_label,
+      last_month:     r.last_month,
+      last_year:      r.last_year
+    };
+  }).sort((a, b) => String(a.company_name).localeCompare(String(b.company_name)));
 }
 
 function _companies(snapRows, compRows, month, year, status, instance) {

@@ -159,6 +159,49 @@ const currentYear = new Date().getFullYear();
     </div>
   </div>
 
+  <!-- FY ROSTER -->
+  <div class="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style="background:linear-gradient(135deg,#f8f4ff,#f0f4ff)">
+      <div>
+        <div class="flex items-center gap-2">
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">FY <span id="roster-fy-label"></span> — Full Year Company Roster</p>
+        </div>
+        <p class="text-xs text-slate-400 mt-0.5">All companies · latest status as of most recent month uploaded</p>
+        <div id="roster-summary" class="flex gap-3 mt-2 hidden">
+          <span class="text-xs font-bold text-emerald-600" id="roster-count-active"></span>
+          <span class="text-xs font-bold text-blue-600" id="roster-count-demo"></span>
+          <span class="text-xs font-bold text-red-500" id="roster-count-expired"></span>
+          <span class="text-xs text-slate-400" id="roster-count-total"></span>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="roster-filter-status" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 bg-white focus:outline-none">
+          <option value="">All Statuses</option>
+          <option value="1">Active</option>
+          <option value="2">Demo</option>
+          <option value="3">Demo Expired</option>
+        </select>
+        <input id="roster-search" type="text" placeholder="Search company…" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none min-w-36"/>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-100">
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company ID</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company Name</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Region</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Latest Status</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Last Updated</th>
+          </tr>
+        </thead>
+        <tbody id="roster-tbody">
+          <tr><td colspan="5" class="text-center text-slate-300 py-10 text-sm">No data for this FY yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- COMPANIES TABLE -->
   <div class="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
     <div class="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -311,7 +354,8 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw3XxKt9bBULIPvyZvRF
 const SECRET_KEY = 'Companies@1234';        // ← must match Code.gs SECRET_KEY
 // ─────────────────────────────────────────────────────────────────
 
-let allCompanies  = [];
+let allCompanies       = [];
+let allRosterCompanies = [];
 let statusChart   = null;
 let trendChart    = null;
 let regionChart   = null;
@@ -385,6 +429,7 @@ async function init() {
   setupEraseModal();
   setupNotesModal();
   setupFilters();
+  setupRosterFilters();
   setupPDF();
 }
 
@@ -426,6 +471,7 @@ function applyFullData(data) {
   renderRegionChips();
   renderAttention(data.attention || []);
   renderFYTrend(data.fyTrend || [], fyMonths);
+  renderFYRoster(data.fyRoster || []);
 }
 
 // ── FY SWITCH (1 API call) ────────────────────────────
@@ -579,6 +625,59 @@ function renderAttention(data) {
       <p class="text-xs text-slate-400 mt-1 uppercase tracking-wide">${c.instance||'—'}</p>
       <p class="text-xs text-slate-300 mt-0.5 font-mono">${c.company_id}</p>
     </div>`).join('');
+}
+
+// ── FY ROSTER ─────────────────────────────────────────
+function renderFYRoster(data) {
+  allRosterCompanies = data || [];
+  document.getElementById('roster-fy-label').textContent = currentFY;
+
+  const active  = allRosterCompanies.filter(c => c.company_status === 1).length;
+  const demo    = allRosterCompanies.filter(c => c.company_status === 2).length;
+  const expired = allRosterCompanies.filter(c => c.company_status === 3).length;
+  const total   = allRosterCompanies.length;
+
+  const summary = document.getElementById('roster-summary');
+  if (total) {
+    document.getElementById('roster-count-active').textContent  = `${active} Active`;
+    document.getElementById('roster-count-demo').textContent    = `${demo} Demo`;
+    document.getElementById('roster-count-expired').textContent = `${expired} Expired`;
+    document.getElementById('roster-count-total').textContent   = `· ${total} total`;
+    summary.classList.remove('hidden');
+  } else {
+    summary.classList.add('hidden');
+  }
+  renderRosterTable(allRosterCompanies);
+}
+
+function renderRosterTable(data) {
+  const tb = document.getElementById('roster-tbody');
+  if (!data.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="text-center text-slate-300 py-10 text-sm">No data for this FY yet</td></tr>';
+    return;
+  }
+  tb.innerHTML = data.map(c => `
+    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+      <td class="px-5 py-3 text-xs text-slate-400 font-mono">${c.company_id}</td>
+      <td class="px-5 py-3 text-sm font-semibold text-slate-800">${c.company_name}</td>
+      <td class="px-5 py-3"><span class="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-semibold uppercase tracking-wide">${c.instance||'—'}</span></td>
+      <td class="px-5 py-3"><span class="px-2.5 py-1 rounded-full text-xs font-bold ${badge(c.company_status)}">${c.status_label}</span></td>
+      <td class="px-5 py-3 text-xs text-slate-400 font-medium">${c.last_month} ${c.last_year}</td>
+    </tr>`).join('');
+}
+
+function filterRoster() {
+  const s = document.getElementById('roster-filter-status').value;
+  const q = document.getElementById('roster-search').value.toLowerCase();
+  renderRosterTable(allRosterCompanies.filter(c =>
+    (!s || String(c.company_status) === s) &&
+    (!q || c.company_name.toLowerCase().includes(q) || String(c.company_id).toLowerCase().includes(q))
+  ));
+}
+
+function setupRosterFilters() {
+  document.getElementById('roster-filter-status').addEventListener('change', filterRoster);
+  document.getElementById('roster-search').addEventListener('input', filterRoster);
 }
 
 // ── REGION CHART ──────────────────────────────────────
