@@ -1,0 +1,287 @@
+---
+import Layout from '../layouts/Layout.astro';
+const BASE = import.meta.env.BASE_URL;
+---
+<Layout title="Full Year Company Roster — Vantage Fit">
+
+<!-- HEADER -->
+<header class="text-white px-6 lg:px-10 py-4 flex items-center justify-between shadow-2xl sticky top-0 z-40" style="background: linear-gradient(135deg,#1a0533 0%,#3b0764 100%)">
+  <div class="flex items-center gap-3">
+    <a href={BASE} class="flex items-center gap-2 text-purple-300 hover:text-white transition-colors text-sm font-semibold mr-2">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+      Dashboard
+    </a>
+    <div class="w-px h-6 bg-purple-700"></div>
+    <img src={`${BASE}logo.png`} alt="Vantage Fit" class="h-9 w-auto drop-shadow" onerror="this.style.display='none'" />
+    <div>
+      <div class="flex items-center gap-2">
+        <h1 class="text-base font-bold tracking-tight">Full Year Company Roster</h1>
+        <span class="hidden sm:inline-block px-2 py-0.5 rounded-full text-xs font-semibold" style="background:rgba(244,63,94,0.25);color:#fda4af">INTERNAL</span>
+      </div>
+      <p class="text-purple-300 text-xs mt-0.5">Vantage Fit · All companies · latest status per fiscal year</p>
+    </div>
+  </div>
+  <button id="export-btn" class="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-purple-500 text-purple-200 hover:bg-purple-800 transition-colors">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+    Export CSV
+  </button>
+</header>
+
+<!-- FY TABS -->
+<div class="bg-white border-b border-slate-100 px-6 lg:px-10 shadow-sm">
+  <div class="flex gap-0 overflow-x-auto" id="fy-tabs">
+    <div class="px-6 py-3 text-sm text-slate-300">Loading…</div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="fixed top-20 right-6 z-50 hidden max-w-sm"></div>
+
+<!-- MAIN -->
+<main class="px-6 lg:px-10 py-6 max-w-screen-2xl mx-auto space-y-5">
+
+  <!-- STAT CARDS -->
+  <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
+      <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#d1fae5,#a7f3d0)">
+        <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-slate-800" id="stat-active">—</p>
+        <p class="text-xs font-semibold text-emerald-600 mt-0.5 uppercase tracking-wide">Active</p>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
+      <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#dbeafe,#bfdbfe)">
+        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.069A1 1 0 0121 8.868V15.131a1 1 0 01-1.447.9L15 14M3 8h12v8H3a1 1 0 01-1-1V9a1 1 0 011-1z"/></svg>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-slate-800" id="stat-demo">—</p>
+        <p class="text-xs font-semibold text-blue-600 mt-0.5 uppercase tracking-wide">Demo</p>
+      </div>
+    </div>
+    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
+      <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,#fee2e2,#fecaca)">
+        <svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-slate-800" id="stat-expired">—</p>
+        <p class="text-xs font-semibold text-red-500 mt-0.5 uppercase tracking-wide">Demo Expired</p>
+      </div>
+    </div>
+    <div class="rounded-2xl p-5 shadow-sm flex items-center gap-4" style="background:linear-gradient(135deg,#1a0533,#3b0764)">
+      <div class="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center flex-shrink-0">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+      </div>
+      <div>
+        <p class="text-2xl font-black text-white" id="stat-total">—</p>
+        <p class="text-xs font-semibold text-purple-300 mt-0.5 uppercase tracking-wide">Total Companies</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABLE CARD -->
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+    <!-- Table Header / Filters -->
+    <div class="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style="background:linear-gradient(135deg,#f8f4ff,#f0f4ff)">
+      <div>
+        <p class="text-sm font-bold text-slate-700">FY <span id="fy-label" class="text-purple-700"></span> — All Companies</p>
+        <p class="text-xs text-slate-400 mt-0.5">Latest status as of most recent month uploaded</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <select id="filter-status" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 bg-white focus:outline-none">
+          <option value="">All Statuses</option>
+          <option value="1">Active</option>
+          <option value="2">Demo</option>
+          <option value="3">Demo Expired</option>
+        </select>
+        <select id="filter-region" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 bg-white focus:outline-none">
+          <option value="">All Regions</option>
+        </select>
+        <input id="search-input" type="text" placeholder="Search company…" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none min-w-40"/>
+      </div>
+    </div>
+    <!-- Table -->
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="bg-slate-50 border-b border-slate-100">
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company ID</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company Name</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Region</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Latest Status</th>
+            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Last Updated</th>
+          </tr>
+        </thead>
+        <tbody id="roster-tbody">
+          <tr><td colspan="5" class="text-center text-slate-300 py-16 text-sm">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="table-footer" class="px-6 py-3 border-t border-slate-50 text-xs text-slate-400 hidden">
+      Showing <span id="count-shown">0</span> of <span id="count-total">0</span> companies
+    </div>
+  </div>
+
+</main>
+
+</Layout>
+
+<script>
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw3XxKt9bBULIPvyZvRFPwMQZi_WoJ-8XuBUNw1fPdh0lDCueelT27ptZnuxta1z8ulzg/exec';
+
+let allCompanies = [];
+let currentFY    = '';
+
+async function apiGet(params) {
+  const r = await fetch(SCRIPT_URL + '?' + new URLSearchParams(params).toString());
+  return r.json();
+}
+
+async function init() {
+  try {
+    const data = await apiGet({ action: 'loadAll' });
+    if (data.error) throw new Error(data.error);
+    applyData(data);
+  } catch(e) {
+    showToast(`Could not load data: ${e.message}`, 'error');
+    document.getElementById('roster-tbody').innerHTML =
+      '<tr><td colspan="5" class="text-center text-red-400 py-16 text-sm">Failed to load — check Apps Script deployment</td></tr>';
+  }
+  setupFilters();
+  setupExport();
+}
+
+function applyData(data) {
+  currentFY = data.activeFY || '';
+
+  // FY Tabs
+  const tabsEl = document.getElementById('fy-tabs');
+  tabsEl.innerHTML = (data.fiscalYears || []).map(fy => `
+    <button class="fy-tab px-6 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap
+      ${fy === data.activeFY ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-400 hover:text-slate-600'}"
+      data-fy="${fy}">FY ${fy}</button>`).join('');
+  tabsEl.querySelectorAll('.fy-tab').forEach(btn =>
+    btn.addEventListener('click', () => switchFY(btn.dataset.fy)));
+
+  document.getElementById('fy-label').textContent = currentFY;
+
+  allCompanies = data.fyRoster || [];
+  updateStats();
+  populateRegionFilter();
+  renderTable(allCompanies);
+}
+
+async function switchFY(fy) {
+  document.querySelectorAll('.fy-tab').forEach(btn => {
+    const on = btn.dataset.fy === fy;
+    btn.className = `fy-tab px-6 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap
+      ${on ? 'border-purple-600 text-purple-700' : 'border-transparent text-slate-400 hover:text-slate-600'}`;
+  });
+  document.getElementById('roster-tbody').innerHTML =
+    '<tr><td colspan="5" class="text-center text-slate-300 py-16 text-sm">Loading…</td></tr>';
+  try {
+    const data = await apiGet({ action: 'loadAll', fy });
+    applyData(data);
+  } catch(e) {
+    showToast(`Failed to switch FY: ${e.message}`, 'error');
+  }
+}
+
+function updateStats() {
+  const active  = allCompanies.filter(c => c.company_status === 1).length;
+  const demo    = allCompanies.filter(c => c.company_status === 2).length;
+  const expired = allCompanies.filter(c => c.company_status === 3).length;
+  document.getElementById('stat-active').textContent  = active;
+  document.getElementById('stat-demo').textContent    = demo;
+  document.getElementById('stat-expired').textContent = expired;
+  document.getElementById('stat-total').textContent   = allCompanies.length;
+}
+
+function populateRegionFilter() {
+  const regions = [...new Set(allCompanies.map(c => (c.instance||'').toLowerCase()).filter(Boolean))].sort();
+  const sel = document.getElementById('filter-region');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">All Regions</option>' +
+    regions.map(r => `<option value="${r}" ${r===prev?'selected':''}>${r.toUpperCase()}</option>`).join('');
+}
+
+function badge(s) {
+  if (s === 1) return 'bg-emerald-100 text-emerald-700';
+  if (s === 2) return 'bg-blue-100 text-blue-700';
+  return 'bg-red-100 text-red-600';
+}
+
+function renderTable(data) {
+  const tb = document.getElementById('roster-tbody');
+  const footer = document.getElementById('table-footer');
+  if (!data.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="text-center text-slate-300 py-16 text-sm">No companies found</td></tr>';
+    footer.classList.add('hidden');
+    return;
+  }
+  tb.innerHTML = data.map(c => `
+    <tr class="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+      <td class="px-5 py-3 text-xs text-slate-400 font-mono">${c.company_id}</td>
+      <td class="px-5 py-3 text-sm font-semibold text-slate-800">${c.company_name}</td>
+      <td class="px-5 py-3"><span class="px-2.5 py-1 bg-slate-100 text-slate-500 rounded-full text-xs font-semibold uppercase tracking-wide">${c.instance||'—'}</span></td>
+      <td class="px-5 py-3"><span class="px-2.5 py-1 rounded-full text-xs font-bold ${badge(c.company_status)}">${c.status_label}</span></td>
+      <td class="px-5 py-3 text-xs text-slate-400 font-medium">${c.last_month} ${c.last_year}</td>
+    </tr>`).join('');
+  document.getElementById('count-shown').textContent = data.length;
+  document.getElementById('count-total').textContent = allCompanies.length;
+  footer.classList.remove('hidden');
+}
+
+function filterCompanies() {
+  const s = document.getElementById('filter-status').value;
+  const r = document.getElementById('filter-region').value;
+  const q = document.getElementById('search-input').value.toLowerCase();
+  renderTable(allCompanies.filter(c =>
+    (!s || String(c.company_status) === s) &&
+    (!r || (c.instance||'').toLowerCase() === r) &&
+    (!q || c.company_name.toLowerCase().includes(q) || String(c.company_id).toLowerCase().includes(q))
+  ));
+}
+
+function setupFilters() {
+  document.getElementById('filter-status').addEventListener('change', filterCompanies);
+  document.getElementById('filter-region').addEventListener('change', filterCompanies);
+  document.getElementById('search-input').addEventListener('input', filterCompanies);
+}
+
+function setupExport() {
+  document.getElementById('export-btn').addEventListener('click', () => {
+    const s = document.getElementById('filter-status').value;
+    const r = document.getElementById('filter-region').value;
+    const q = document.getElementById('search-input').value.toLowerCase();
+    const rows = allCompanies.filter(c =>
+      (!s || String(c.company_status) === s) &&
+      (!r || (c.instance||'').toLowerCase() === r) &&
+      (!q || c.company_name.toLowerCase().includes(q) || String(c.company_id).toLowerCase().includes(q))
+    );
+    if (!rows.length) { showToast('No data to export', 'error'); return; }
+    const header = 'Company ID,Company Name,Region,Status,Last Updated Month,Last Updated Year';
+    const csv = [header, ...rows.map(c =>
+      `"${c.company_id}","${c.company_name}","${c.instance||''}","${c.status_label}","${c.last_month}","${c.last_year}"`
+    )].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
+    a.download = `VantageFit_FY${currentFY}_Roster.csv`;
+    a.click();
+    showToast('✓ CSV exported', 'success');
+  });
+}
+
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  const styles = { success:'bg-emerald-500 text-white', error:'bg-red-500 text-white', warning:'bg-amber-500 text-white' };
+  t.className = `fixed top-20 right-6 z-50 px-5 py-3 rounded-xl text-sm font-semibold shadow-xl max-w-md ${styles[type]||styles.error}`;
+  t.textContent = msg;
+  t.classList.remove('hidden');
+  setTimeout(() => t.classList.add('hidden'), 4000);
+}
+
+init();
+</script>
+</Layout>
