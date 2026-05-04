@@ -374,8 +374,13 @@ function parseExcelFile(file) {
 // ── INIT ──────────────────────────────────────────────
 async function init() {
   document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleString()}`;
-  const data = await apiGet({ action: 'loadAll' });
-  applyFullData(data);
+  try {
+    const data = await apiGet({ action: 'loadAll' });
+    if (data.error) throw new Error(data.error);
+    applyFullData(data);
+  } catch(e) {
+    showToast(`✗ Could not load dashboard: ${e.message}. Check Apps Script deployment.`, 'error');
+  }
   setupUploadModal();
   setupEraseModal();
   setupNotesModal();
