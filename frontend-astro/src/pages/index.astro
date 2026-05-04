@@ -304,16 +304,72 @@ const currentYear = new Date().getFullYear();
 import Chart from 'chart.js/auto';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
-const API = '/api';
-let allCompanies = [];
-let statusChart = null;
-let trendChart = null;
-let regionChart = null;
-let fyMonths = [];
-let currentFY = '';
-let lastKPIs = {};
+// ── CONFIG — fill these in after deploying your Apps Script ──────
+const SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL';  // ← deployment URL from Apps Script
+const SECRET_KEY = 'YOUR_SECRET_KEY';        // ← must match Code.gs SECRET_KEY
+// ─────────────────────────────────────────────────────────────────
+
+let allCompanies  = [];
+let statusChart   = null;
+let trendChart    = null;
+let regionChart   = null;
+let fyMonths      = [];
+let currentFY     = '';
+let lastKPIs      = {};
 let lastLifecycle = [];
+
+// ── API helpers ───────────────────────────────────────────────────
+async function apiGet(params) {
+  const r = await fetch(SCRIPT_URL + '?' + new URLSearchParams(params).toString());
+  return r.json();
+}
+async function apiPost(data) {
+  const r = await fetch(SCRIPT_URL, {
+    method:  'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body:    JSON.stringify(data)
+  });
+  return r.json();
+}
+
+// ── Client-side Excel parser (replaces server-side excelParser.js) ─
+function parseExcelDate(val) {
+  if (!val) return null;
+  if (typeof val === 'number') {
+    const d = new Date((val - 25569) * 86400 * 1000);
+    return isNaN(d) ? null : d.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  if (typeof val === 'string') {
+    const d = new Date(val);
+    return isNaN(d) ? null : d.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  return null;
+}
+function parseExcelFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb      = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+        const ws      = wb.Sheets[wb.SheetNames[0]];
+        const rows    = XLSX.utils.sheet_to_json(ws);
+        const records = rows.map(row => ({
+          company_id:     String(row['Company Id']     || row['company_id']     || '').trim(),
+          company_name:   String(row['Company Name']   || row['company_name']   || '').trim(),
+          instance:       String(row['Instance']       || row['instance']       || '').trim().toLowerCase(),
+          company_status: parseInt(row['Company Status']|| row['company_status']|| 0),
+          status_label:   String(row['status_label']   || '').trim(),
+          created_at:     parseExcelDate(row['created_at'] || row['Created At'] || null)
+        })).filter(r => r.company_id && r.company_name);
+        resolve(records);
+      } catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
 
 // ── INIT ──────────────────────────────────────────────
 async function init() {
@@ -337,8 +393,7 @@ function getNextFY(fy) {
 }
 
 async function loadFiscalYears() {
-  const res = await fetch(`${API}/dashboard/fiscal-years`);
-  let fys = await res.json();
+  let fys = await apiGet({ action: 'getFiscalYears' });
   const cfy = getCurrentFY();
   if (!fys.includes(cfy)) fys.push(cfy);
   if (!fys.includes(getNextFY(cfy))) fys.push(getNextFY(cfy));
@@ -359,8 +414,7 @@ async function switchFY(fy) {
     const a = btn.dataset.fy === fy;
     btn.className = `fy-tab px-6 py-3 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${a?'border-vf-coral text-vf-coral':'border-transparent text-slate-400 hover:text-slate-600'}`;
   });
-  const res = await fetch(`${API}/dashboard/months-for-fy?fy=${fy}`);
-  fyMonths = await res.json();
+  fyMonths = await apiGet({ action: 'getMonthsForFY', fy });
   const sel = document.getElementById('month-select');
   sel.innerHTML = fyMonths.length
     ? fyMonths.map((m,i) => `<option value="${m.month}|${m.year}" ${i===fyMonths.length-1?'selected':''}>${m.month} ${m.year}</option>`).join('')
@@ -377,8 +431,7 @@ async function loadDashboard() {
 }
 
 async function loadKPIs(month, year) {
-  const r = await fetch(`${API}/dashboard/kpis?month=${month}&year=${year}`);
-  lastKPIs = await r.json();
+  lastKPIs = await apiGet({ action: 'getKPIs', month, year });
   document.getElementById('kpi-active').textContent  = lastKPIs.active;
   document.getElementById('kpi-demo').textContent    = lastKPIs.demo;
   document.getElementById('kpi-expired').textContent = lastKPIs.demo_expired;
@@ -411,8 +464,7 @@ async function loadLifecycle(currentMonth, currentYear) {
     return;
   }
   const prev = fyMonths[idx-1];
-  const r = await fetch(`${API}/dashboard/lifecycle?currentMonth=${currentMonth}&currentYear=${currentYear}&prevMonth=${prev.month}&prevYear=${prev.year}`);
-  lastLifecycle = await r.json();
+  lastLifecycle = await apiGet({ action: 'getLifecycle', currentMonth, currentYear, prevMonth: prev.month, prevYear: prev.year });
 
   const converted = lastLifecycle.filter(c=>c.from_status===2&&c.to_status===1).length;
   const expired   = lastLifecycle.filter(c=>c.to_status===3).length;
@@ -448,7 +500,7 @@ async function loadFYTrend() {
   document.getElementById('trend-fy-label').textContent = currentFY;
   if (!fyMonths.length) return;
   const kpiList = await Promise.all(
-    fyMonths.map(m => fetch(`${API}/dashboard/kpis?month=${m.month}&year=${m.year}`).then(r => r.json()))
+    fyMonths.map(m => apiGet({ action: 'getKPIs', month: m.month, year: m.year }))
   );
   const labels = fyMonths.map(m => `${m.month.slice(0,3)} '${String(m.year).slice(2)}`);
   const ctx = document.getElementById('trendChart').getContext('2d');
@@ -475,8 +527,7 @@ async function loadFYTrend() {
 }
 
 async function loadCompanies(month, year) {
-  const r = await fetch(`${API}/dashboard/companies?month=${month}&year=${year}`);
-  allCompanies = await r.json();
+  allCompanies = await apiGet({ action: 'getCompanies', month, year });
   renderTable(allCompanies);
   renderRegionChart();
   renderRegionChips();
@@ -505,8 +556,7 @@ function renderTable(data) {
 }
 
 async function loadAttention(month, year) {
-  const r = await fetch(`${API}/dashboard/attention?month=${month}&year=${year}`);
-  const data = await r.json();
+  const data = await apiGet({ action: 'getAttention', month, year });
   const el = document.getElementById('attention-list');
   if (!data.length) { el.innerHTML='<p class="text-slate-300 text-sm col-span-full text-center py-4">No companies require attention ✓</p>'; return; }
   el.innerHTML = data.map(c=>`
@@ -626,10 +676,8 @@ async function saveNotes() {
   const btn = document.getElementById('notes-save-btn');
   btn.textContent = 'Saving…'; btn.disabled = true;
   try {
-    const r = await fetch(`${API}/dashboard/companies/${encodeURIComponent(companyId)}/notes`, {
-      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ notes })
-    });
-    if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.error || `HTTP ${r.status}`); }
+    const d = await apiPost({ action: 'updateNotes', key: SECRET_KEY, company_id: companyId, notes });
+    if (!d.success) throw new Error(d.error || 'Failed to save notes');
     const sel = document.getElementById('month-select');
     if (sel.value && sel.value.includes('|')) {
       const [month, year] = sel.value.split('|');
@@ -670,18 +718,14 @@ function setupUploadModal() {
     document.getElementById('upload-progress').classList.remove('hidden');
     cb.disabled=true;
 
-    const pw = document.getElementById('upload-password').value.trim();
+    const pw    = document.getElementById('upload-password').value.trim();
+    const month = document.getElementById('upload-month').value;
+    const year  = +document.getElementById('upload-year').value;
     document.getElementById('upload-error').classList.add('hidden');
 
-    const fd=new FormData();
-    fd.append('report',cb._file);
-    fd.append('month',document.getElementById('upload-month').value);
-    fd.append('year',document.getElementById('upload-year').value);
-    fd.append('password', pw);
-
     try{
-      const r=await fetch(`${API}/import/upload`,{method:'POST',body:fd});
-      const d=await r.json();
+      const records = await parseExcelFile(cb._file);
+      const d = await apiPost({ action: 'importData', password: pw, month, year, records });
       closeUpload();
       if(d.success){
         showToast(`✓ Imported ${d.total} companies — ${d.month} ${d.year} (FY ${d.fiscalYear})`,'success');
@@ -722,8 +766,7 @@ function setupEraseModal() {
     const [m,y]=document.getElementById('month-select').value.split('|');
     cb.disabled=true; cb.textContent='Erasing…'; err.classList.add('hidden');
     try{
-      const r=await fetch(`${API}/import/erase`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({month:m,year:+y,password:pw})});
-      const d=await r.json();
+      const d = await apiPost({ action: 'eraseMonth', month: m, year: +y, password: pw });
       if(d.success){ closeErase(); showToast(`✓ Data for ${m} ${y} erased`,'success'); await loadFiscalYears(); }
       else{ err.textContent=d.error||'Incorrect password'; err.classList.remove('hidden'); }
     }catch(e){ err.textContent='Error: '+e.message; err.classList.remove('hidden'); }
