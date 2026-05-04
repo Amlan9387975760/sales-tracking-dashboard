@@ -43,11 +43,60 @@ const currentYear = new Date().getFullYear();
     <select id="month-select" class="border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 bg-white" style="--tw-ring-color:#f43f5e">
       <option>Loading...</option>
     </select>
+    <button id="full-year-toggle" class="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-purple-200 text-purple-600 hover:bg-purple-50 transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      Full Year
+    </button>
   </div>
   <button id="erase-btn" class="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 px-3 py-1.5 rounded-lg transition-colors">
     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
     Erase Month
   </button>
+</div>
+
+<!-- FULL YEAR ROSTER PANEL -->
+<div id="full-year-panel" class="hidden border-b border-slate-100 bg-slate-50">
+  <div class="px-6 lg:px-10 py-4 max-w-screen-2xl mx-auto">
+    <div class="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style="background:linear-gradient(135deg,#f8f4ff,#f0f4ff)">
+        <div>
+          <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">FY <span id="roster-fy-label"></span> — Full Year Company Roster</p>
+          <p class="text-xs text-slate-400 mt-0.5">All companies · latest status as of most recent month uploaded</p>
+          <div id="roster-summary" class="flex gap-3 mt-2 hidden">
+            <span class="text-xs font-bold text-emerald-600" id="roster-count-active"></span>
+            <span class="text-xs font-bold text-blue-600" id="roster-count-demo"></span>
+            <span class="text-xs font-bold text-red-500" id="roster-count-expired"></span>
+            <span class="text-xs text-slate-400" id="roster-count-total"></span>
+          </div>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <select id="roster-filter-status" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 bg-white focus:outline-none">
+            <option value="">All Statuses</option>
+            <option value="1">Active</option>
+            <option value="2">Demo</option>
+            <option value="3">Demo Expired</option>
+          </select>
+          <input id="roster-search" type="text" placeholder="Search company…" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none min-w-36"/>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-100">
+              <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company ID</th>
+              <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company Name</th>
+              <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Region</th>
+              <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Latest Status</th>
+              <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Last Updated</th>
+            </tr>
+          </thead>
+          <tbody id="roster-tbody">
+            <tr><td colspan="5" class="text-center text-slate-300 py-10 text-sm">No data for this FY yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- TOAST -->
@@ -156,49 +205,6 @@ const currentYear = new Date().getFullYear();
     </div>
     <div id="attention-list" class="p-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       <p class="text-slate-300 text-sm col-span-full text-center py-4">No companies require attention</p>
-    </div>
-  </div>
-
-  <!-- FY ROSTER -->
-  <div class="bg-white rounded-2xl shadow-card border border-slate-100 overflow-hidden">
-    <div class="px-6 py-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3" style="background:linear-gradient(135deg,#f8f4ff,#f0f4ff)">
-      <div>
-        <div class="flex items-center gap-2">
-          <p class="text-xs font-bold text-slate-500 uppercase tracking-widest">FY <span id="roster-fy-label"></span> — Full Year Company Roster</p>
-        </div>
-        <p class="text-xs text-slate-400 mt-0.5">All companies · latest status as of most recent month uploaded</p>
-        <div id="roster-summary" class="flex gap-3 mt-2 hidden">
-          <span class="text-xs font-bold text-emerald-600" id="roster-count-active"></span>
-          <span class="text-xs font-bold text-blue-600" id="roster-count-demo"></span>
-          <span class="text-xs font-bold text-red-500" id="roster-count-expired"></span>
-          <span class="text-xs text-slate-400" id="roster-count-total"></span>
-        </div>
-      </div>
-      <div class="flex flex-wrap items-center gap-2">
-        <select id="roster-filter-status" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 bg-white focus:outline-none">
-          <option value="">All Statuses</option>
-          <option value="1">Active</option>
-          <option value="2">Demo</option>
-          <option value="3">Demo Expired</option>
-        </select>
-        <input id="roster-search" type="text" placeholder="Search company…" class="border border-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none min-w-36"/>
-      </div>
-    </div>
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="bg-slate-50 border-b border-slate-100">
-            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company ID</th>
-            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Company Name</th>
-            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Region</th>
-            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Latest Status</th>
-            <th class="text-left px-5 py-3 text-xs font-bold text-slate-400 uppercase tracking-wide">Last Updated</th>
-          </tr>
-        </thead>
-        <tbody id="roster-tbody">
-          <tr><td colspan="5" class="text-center text-slate-300 py-10 text-sm">No data for this FY yet</td></tr>
-        </tbody>
-      </table>
     </div>
   </div>
 
@@ -430,6 +436,7 @@ async function init() {
   setupNotesModal();
   setupFilters();
   setupRosterFilters();
+  setupFullYearToggle();
   setupPDF();
 }
 
@@ -678,6 +685,20 @@ function filterRoster() {
 function setupRosterFilters() {
   document.getElementById('roster-filter-status').addEventListener('change', filterRoster);
   document.getElementById('roster-search').addEventListener('input', filterRoster);
+}
+
+function setupFullYearToggle() {
+  const btn   = document.getElementById('full-year-toggle');
+  const panel = document.getElementById('full-year-panel');
+  btn.addEventListener('click', () => {
+    const opening = panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !opening);
+    btn.classList.toggle('bg-purple-600',    opening);
+    btn.classList.toggle('text-white',       opening);
+    btn.classList.toggle('border-purple-600',opening);
+    btn.classList.toggle('text-purple-600',  !opening);
+    btn.classList.toggle('border-purple-200',!opening);
+  });
 }
 
 // ── REGION CHART ──────────────────────────────────────
